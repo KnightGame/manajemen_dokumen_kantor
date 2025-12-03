@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 import os
+from streamlit_option_menu import option_menu
 
 # Import fungsi dari utils.py
 from utils import (
@@ -29,7 +30,7 @@ st.set_page_config(
     page_title="Sistem Manajemen Dokumen Kantor",
     page_icon="📄",
     layout="wide",
-    initial_sidebar_state="collapsed"
+    initial_sidebar_state="expanded"
 )
 
 # ============= STYLING CSS =============
@@ -43,6 +44,11 @@ st.markdown("""
     /* Dark Background */
     .stApp {
         background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+    }
+    
+    /* Sidebar styling */
+    [data-testid="stSidebar"] {
+        background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%);
     }
     
     /* Streamlit elements dark theme */
@@ -327,19 +333,19 @@ def show_lobby():
         </div>
         """, unsafe_allow_html=True)
         if st.button("Buka Dashboard", key="btn_dashboard", use_container_width=True):
-            st.session_state.page = "dashboard"
+            st.session_state.selected = "Dashboard"
             st.rerun()
     
     with col2:
         st.markdown("""
         <div class="menu-card">
-            <div class="menu-icon">📁</div>
+            <div class="menu-icon">📝</div>
             <div class="menu-title">Data Master</div>
             <div class="menu-desc">Kelola data dokumen (Lihat, Tambah, Edit, Hapus)</div>
         </div>
         """, unsafe_allow_html=True)
         if st.button("Kelola Data", key="btn_master", use_container_width=True):
-            st.session_state.page = "data_master"
+            st.session_state.selected = "Data Master"
             st.rerun()
     
     with col3:
@@ -351,7 +357,7 @@ def show_lobby():
         </div>
         """, unsafe_allow_html=True)
         if st.button("Generate QR", key="btn_generate", use_container_width=True):
-            st.session_state.page = "generate_qr"
+            st.session_state.selected = "Generate QR"
             st.rerun()
     
     with col4:
@@ -363,7 +369,7 @@ def show_lobby():
         </div>
         """, unsafe_allow_html=True)
         if st.button("Scan QR", key="btn_scan", use_container_width=True):
-            st.session_state.page = "scan_qr"
+            st.session_state.selected = "Scan QR"
             st.rerun()
     
     st.markdown("<br>", unsafe_allow_html=True)
@@ -380,7 +386,7 @@ def show_lobby():
         </div>
         """, unsafe_allow_html=True)
         if st.button("Lihat Laporan", key="btn_laporan", use_container_width=True):
-            st.session_state.page = "laporan"
+            st.session_state.selected = "Laporan"
             st.rerun()
     
     with col2:
@@ -392,7 +398,7 @@ def show_lobby():
         </div>
         """, unsafe_allow_html=True)
         if st.button("Cari Dokumen", key="btn_search", use_container_width=True):
-            st.session_state.page = "pencarian"
+            st.session_state.selected = "Pencarian"
             st.rerun()
     
     with col3:
@@ -404,7 +410,7 @@ def show_lobby():
         </div>
         """, unsafe_allow_html=True)
         if st.button("Pengaturan", key="btn_settings", use_container_width=True):
-            st.session_state.page = "pengaturan"
+            st.session_state.selected = "Pengaturan"
             st.rerun()
     
     with col4:
@@ -416,7 +422,7 @@ def show_lobby():
         </div>
         """, unsafe_allow_html=True)
         if st.button("Info Aplikasi", key="btn_about", use_container_width=True):
-            st.session_state.page = "tentang"
+            st.session_state.selected = "Tentang"
             st.rerun()
     
     # Info box
@@ -458,12 +464,7 @@ def show_lobby():
 def show_data_master():
     """Menampilkan halaman data master dengan CRUD"""
     
-    st.markdown('<div class="main-header">📁 Data Master Dokumen</div>', unsafe_allow_html=True)
-    
-    # Tombol kembali
-    if st.button("⬅️ Kembali ke Lobby"):
-        st.session_state.page = "lobby"
-        st.rerun()
+    st.markdown('<div class="main-header">📝 Data Master Dokumen</div>', unsafe_allow_html=True)
     
     st.markdown("---")
     
@@ -709,11 +710,6 @@ def show_tentang():
     
     st.markdown('<div class="main-header">ℹ️ Tentang Aplikasi</div>', unsafe_allow_html=True)
     
-    # Tombol kembali
-    if st.button("⬅️ Kembali ke Lobby"):
-        st.session_state.page = "lobby"
-        st.rerun()
-    
     st.markdown("---")
     
     st.markdown("""
@@ -832,46 +828,85 @@ def main():
     """Fungsi utama aplikasi"""
     
     # Inisialisasi session state
-    if 'page' not in st.session_state:
-        st.session_state.page = "lobby"
+    if 'selected' not in st.session_state:
+        st.session_state.selected = "Home"
     
-    # Routing halaman
-    if st.session_state.page == "lobby":
+    # Sidebar dengan streamlit-option-menu
+    with st.sidebar:
+        st.markdown("""
+        <div style="text-align: center; padding: 1rem; background: linear-gradient(135deg, #00d4ff 0%, #7b2ff7 100%); border-radius: 10px; margin-bottom: 1rem;">
+            <h2 style="color: white; margin: 0;">📄 SMDOK</h2>
+            <p style="color: white; margin: 0; font-size: 0.8rem;">Sistem Manajemen Dokumen</p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        selected = option_menu(
+            menu_title="Menu Utama",
+            options=["Home", "Dashboard", "Data Master", "Generate QR", "Scan QR", "Laporan", "Pencarian", "Pengaturan", "Tentang"],
+            icons=["house", "bar-chart", "file-text", "qr-code", "camera", "graph-up", "search", "gear", "info-circle"],
+            menu_icon="list",
+            default_index=0,
+            styles={
+                "container": {"padding": "0!important", "background-color": "#1a1a2e"},
+                "icon": {"color": "#00d4ff", "font-size": "18px"}, 
+                "nav-link": {
+                    "font-size": "14px",
+                    "text-align": "left",
+                    "margin": "0px",
+                    "padding": "10px",
+                    "color": "#b8b8d1",
+                    "background-color": "#2d2d44",
+                    "border-radius": "5px",
+                    "margin-bottom": "5px"
+                },
+                "nav-link-selected": {
+                    "background": "linear-gradient(135deg, #00d4ff 0%, #7b2ff7 100%)",
+                    "color": "white",
+                    "font-weight": "bold"
+                },
+            }
+        )
+        
+        st.session_state.selected = selected
+        
+        st.markdown("---")
+        
+        # Statistik sidebar
+        stats = get_statistics(DATA_FILE)
+        st.markdown("### 📊 Quick Stats")
+        st.metric("Total Dokumen", stats['total_dokumen'])
+        st.metric("Dokumen Aktif", stats['dokumen_aktif'])
+        st.metric("Dokumen Arsip", stats['dokumen_arsip'])
+        
+        st.markdown("---")
+        
+        # Info footer
+        st.markdown("""
+        <div style="text-align: center; color: #b8b8d1; font-size: 0.8rem;">
+            <p><strong>SMDOK v1.0.0</strong></p>
+            <p>© 2025 Pemrograman Terstruktur</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    # Routing halaman berdasarkan menu yang dipilih
+    if st.session_state.selected == "Home":
         show_lobby()
-    elif st.session_state.page == "data_master":
+    elif st.session_state.selected == "Data Master":
         show_data_master()
-    elif st.session_state.page == "tentang":
+    elif st.session_state.selected == "Tentang":
         show_tentang()
-    elif st.session_state.page == "dashboard":
+    elif st.session_state.selected == "Dashboard":
         st.info("🚧 Fitur Dashboard sedang dalam pengembangan")
-        if st.button("⬅️ Kembali ke Lobby"):
-            st.session_state.page = "lobby"
-            st.rerun()
-    elif st.session_state.page == "generate_qr":
+    elif st.session_state.selected == "Generate QR":
         st.info("🚧 Fitur Generate QR Code sedang dalam pengembangan")
-        if st.button("⬅️ Kembali ke Lobby"):
-            st.session_state.page = "lobby"
-            st.rerun()
-    elif st.session_state.page == "scan_qr":
+    elif st.session_state.selected == "Scan QR":
         st.info("🚧 Fitur Scan QR Code sedang dalam pengembangan")
-        if st.button("⬅️ Kembali ke Lobby"):
-            st.session_state.page = "lobby"
-            st.rerun()
-    elif st.session_state.page == "laporan":
+    elif st.session_state.selected == "Laporan":
         st.info("🚧 Fitur Laporan sedang dalam pengembangan")
-        if st.button("⬅️ Kembali ke Lobby"):
-            st.session_state.page = "lobby"
-            st.rerun()
-    elif st.session_state.page == "pencarian":
+    elif st.session_state.selected == "Pencarian":
         st.info("🚧 Fitur Pencarian sedang dalam pengembangan")
-        if st.button("⬅️ Kembali ke Lobby"):
-            st.session_state.page = "lobby"
-            st.rerun()
-    elif st.session_state.page == "pengaturan":
+    elif st.session_state.selected == "Pengaturan":
         st.info("🚧 Fitur Pengaturan sedang dalam pengembangan")
-        if st.button("⬅️ Kembali ke Lobby"):
-            st.session_state.page = "lobby"
-            st.rerun()
     else:
         show_lobby()
 
