@@ -210,8 +210,8 @@ Halaman untuk generate dan download QR Code:
 |------|-----|-------|------------|
 | **Ahmad Farid Zulkarnain** | 24020063 | Project Lead & Backend | Arsitektur sistem, fungsi CRUD, integrasi modul |
 | **Apriliano Hasta Asfirza** | 24020070 | QR Code Developer | Fungsi generate & scan QR, integrasi pyzbar |
-| **Falista Nabila Saputra** | 24020052 | Frontend Developer | UI/UX design, CSS styling, halaman Lobby & Dashboard |
-| **Iqma Komala Jaya** | 24020056 | Data & Reporting | Fungsi statistik, grafik Plotly, export Excel |
+| **Falista Nabila Saputra** | 24020052 | Dashboard & Visualization | Dashboard layout, grafik Plotly, statistik data, pencarian dokumen, CSS styling & UI/UX |
+| **Iqma Komala Jaya** | 24020056 | Pages & Export | Halaman Login/Lobby/Laporan, filter dokumen, export Excel, form styling |
 | **Muhammad Rosyid** | 24020077 | Testing & Documentation | Testing fitur, dokumentasi, README, backup system |
 
 ### Rincian Tugas
