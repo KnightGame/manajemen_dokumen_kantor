@@ -25,11 +25,12 @@ from utils import (
     # fungsi log aktivitas
     tambah_log, get_semua_log,
     # fungsi qr code
-    generate_qr_code,
+    generate_qr_code, scan_qr_code, generate_qr_batch,
     # fungsi statistik dan grafik
     get_statistik, get_dokumen_terbaru, get_log_terbaru,
-    # fungsi pencarian, filter
-    cari_dokumen, filter_dokumen,
+    buat_pie_chart, buat_bar_chart, buat_line_chart,
+    # fungsi pencarian, filter, export, backup
+    cari_dokumen, filter_dokumen, export_excel, buat_backup,
     # fungsi login
     validasi_login, tambah_user, get_file_size,
     # konstanta
@@ -49,19 +50,8 @@ FILE_LOG = "data/log.csv"               # log aktivitas
 FILE_USERS = "data/users.csv"           # data user
 FOLDER_QR = "qr"                        # folder menyimpan gambar qr code
 
-# ============================================
-# ROLE-BASED ACCESS CONTROL (RBAC)
-# ============================================
 # Definisi akses untuk setiap role
 ROLE_ACCESS = {
-    'viewer': {
-        'menu': ['Lobby', 'Dashboard', 'Scan QR', 'Laporan', 'Pengaturan'],
-        'dashboard_aktivitas': False,       # tidak bisa lihat aktivitas terbaru
-        'data_master_tabs': [],             # tidak ada akses ke data master
-        'laporan_tabs': ['Grafik'],         # hanya grafik
-        'pengaturan_tabs': ['Tentang'],     # hanya tentang
-        'kelola_qr': False,                 # tidak bisa kelola QR
-    },
     'staff': {
         'menu': ['Lobby', 'Dashboard', 'Data Master', 'Scan QR', 'Laporan', 'Pengaturan'],
         'dashboard_aktivitas': True,        # bisa lihat aktivitas terbaru
@@ -84,8 +74,8 @@ def get_user_access():
     """
     Ambil konfigurasi akses berdasarkan role user yang login
     """
-    role = st.session_state.get('role', 'viewer').lower()
-    return ROLE_ACCESS.get(role, ROLE_ACCESS['viewer'])
+    role = st.session_state.get('role', 'staff').lower()
+    return ROLE_ACCESS.get(role, ROLE_ACCESS['staff'])
 
 def has_menu_access(menu_name):
     """
@@ -212,7 +202,6 @@ st.markdown("""
     }
     .role-admin { background: #ef4444; color: white; }
     .role-staff { background: #3b82f6; color: white; }
-    .role-viewer { background: #10b981; color: white; }
     
     /* Hide camera button */
     [data-testid="stCameraInput"] > button,
@@ -254,69 +243,12 @@ def get_role_badge(role):
     role_lower = role.lower()
     if role_lower == 'admin':
         return '<span class="role-badge role-admin">Admin</span>'
-    elif role_lower == 'staff':
-        return '<span class="role-badge role-staff">Staff</span>'
     else:
-        return '<span class="role-badge role-viewer">Viewer</span>'
-
-# HALAMAN DALAM PENGEMBANGAN
-def halaman_dalam_pengembangan(nama_fitur, icon):
-    """
-    Halaman placeholder untuk fitur yang sedang dalam pengembangan
-    --------------------------------------------------------------
-    Menampilkan pesan bahwa fitur sedang dikembangkan
-    
-    Parameter:
-    - nama_fitur: nama fitur yang sedang dikembangkan
-    - icon: emoji icon untuk fitur tersebut
-    """
-    st.header(f"{icon} {nama_fitur}")
-    
-    # Card utama dengan animasi
-    st.markdown(f"""
-    <div style="
-        background: linear-gradient(135deg, #1a1d24 0%, #2d3139 100%);
-        padding: 60px 40px;
-        border-radius: 20px;
-        text-align: center;
-        margin: 50px 0;
-        border: 2px dashed #f59e0b;
-        box-shadow: 0 10px 40px rgba(245, 158, 11, 0.1);
-    ">
-        <div style="font-size: 80px; margin-bottom: 20px;">🚧</div>
-        <h2 style="color: #f59e0b; font-size: 32px; margin-bottom: 15px;">
-            Fitur Sedang Dalam Pengembangan
-        </h2>
-        <p style="color: #b0b8c4; font-size: 18px; margin-bottom: 25px;">
-            Halaman <strong style="color: #fafafa;">{icon} {nama_fitur}</strong> sedang dalam tahap pengembangan.
-        </p>
-        <p style="color: #6b7280; font-size: 14px;">
-            Tim pengembang sedang bekerja keras untuk menghadirkan fitur ini.<br>
-            Silakan kembali lagi nanti! 🙏
-        </p>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # Info tambahan
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        st.info("💡 **Tips:** Anda dapat menggunakan menu lain yang sudah tersedia seperti **Lobby**, **Dashboard**, **Data Master**, dan **Pengaturan**.")
-    
-    # Tombol kembali ke lobby
-    col1, col2, col3 = st.columns([1, 1, 1])
-    with col2:
-        if st.button("🏠 Kembali ke Lobby", use_container_width=True, type="primary"):
-            st.session_state['menu'] = 'Lobby'
-            st.rerun()
+        return '<span class="role-badge role-staff">Staff</span>'
 
 # HALAMAN LOGIN
 def halaman_login():
-    """
-    Tampilkan halaman login
-    -----------------------
-    Halaman ini ditampilkan jika user belum login.
-    Terdapat form untuk input username dan password.
-    """
+    # Tampilkan halaman login
     # Header dengan styling
     st.markdown("""
     <div style="text-align: center; padding: 50px 0;">
@@ -361,19 +293,13 @@ def halaman_login():
         |----------|----------|------|
         | admin | admin123 | Admin |
         | staff | staff123 | Staff |
-        | viewer | viewer123 | Viewer |
         """)
 
 # HALAMAN LOBBY
 def halaman_lobby():
-    """
-    Tampilkan halaman lobby dengan menu utama
-    -----------------------------------------
-    Halaman ini adalah halaman utama setelah login.
-    Menampilkan menu-menu yang dapat diakses berdasarkan role user.
-    """
+    # Tampilkan halaman lobby dengan menu utama 
     access = get_user_access()
-    role = st.session_state.get('role', 'viewer')
+    role = st.session_state.get('role', 'staff')
 
     # Header dengan gradient
     st.markdown(f"""
@@ -423,7 +349,7 @@ def halaman_lobby():
                 
                 # Tombol untuk navigasi
                 if st.button(f"Buka {item['title']}", key=f"btn_{item['title']}", use_container_width=True):
-                    st.session_state['menu'] = item['title']
+                    st.session_state['current_menu'] = item['title']
                     st.rerun()
     
     # Statistik cepat di bawah menu
@@ -446,7 +372,7 @@ def halaman_lobby():
         """, unsafe_allow_html=True)
     
     with col2:
-        # Aktivitas hanya ditampilkan untuk staff dan admin
+        # Aktivitas ditampilkan untuk staff dan admin
         if access['dashboard_aktivitas']:
             st.markdown(f"""
             <div class="metric-card green">
@@ -484,20 +410,14 @@ def halaman_lobby():
     
     role_info = {
         'admin': "Anda memiliki akses penuh ke semua fitur aplikasi.",
-        'staff': "Anda dapat melihat data, log aktivitas, dan scan QR. Tidak dapat menambah/edit/hapus dokumen atau mengelola QR.",
-        'viewer': "Anda dapat melihat dashboard, scan QR, dan melihat grafik laporan."
+        'staff': "Anda dapat melihat data, log aktivitas, dan scan QR. Tidak dapat menambah/edit/hapus dokumen atau mengelola QR."
     }
     
     st.info(f"**Role: {role.upper()}** - {role_info.get(role.lower(), 'Akses terbatas')}")
 
 # HALAMAN DASHBOARD
 def halaman_dashboard():
-    """
-    Halaman dashboard dengan statistik dan grafik
-    ---------------------------------------------
-    Menampilkan ringkasan data dokumen dan aktivitas terbaru.
-    Aktivitas terbaru hanya ditampilkan untuk staff dan admin.
-    """
+    # Halaman dashboard dengan statistik dan grafik
     access = get_user_access()
     
     st.header("📊 Dashboard")
@@ -523,7 +443,30 @@ def halaman_dashboard():
     
     st.markdown("---")  # garis pemisah
     
+    # Grafik dalam 2 kolom
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.subheader("📈 Distribusi Jenis Dokumen")
+        df = get_semua_dokumen(FILE_DOKUMEN)
+        
+        # Buat pie chart
+        fig = buat_pie_chart(df, 'Jenis', 'Dokumen per Jenis')
+        if fig:
+            st.plotly_chart(fig, use_container_width=True, theme=None)
+        else:
+            st.info("Belum ada data dokumen")
+    
+    with col2:
+        st.subheader("📊 Dokumen per Lokasi")
+        fig = buat_bar_chart(df, 'Lokasi_Fisik', 'Dokumen per Lokasi')
+        if fig:
+            st.plotly_chart(fig, use_container_width=True, theme=None)
+        else:
+            st.info("Belum ada data dokumen")
+    
     # Data Terbaru dalam 2 kolom
+    st.markdown("---")
     col1, col2 = st.columns(2)
     
     with col1:
@@ -559,7 +502,6 @@ def halaman_data_master():
     4. Hapus - menghapus dokumen dengan konfirmasi
     
     Akses berdasarkan Role:
-    - Viewer: Tidak ada akses
     - Staff: Hanya tab Lihat Data
     - Admin: Semua tab (Lihat Data, Tambah, Edit, Hapus)
     """
@@ -732,7 +674,8 @@ def halaman_data_master():
                         # Catat log aktivitas
                         tambah_log(FILE_LOG, new_id, "CREATE", st.session_state.get('username', 'Admin'))
                         st.success(f"✅ Dokumen berhasil ditambahkan dengan ID: **{new_id}**")
-                        st.balloons()   # efek balon saat sukses
+                        st.toast(' Data tersimpan!', icon='✅')  # Notifikasi pop-up kecil
+                        time.sleep(0.5)  # delay singkat untuk smooth transition
                     else:
                         st.error("❌ Judul dokumen harus diisi!")
     
@@ -745,12 +688,10 @@ def halaman_data_master():
             df = get_semua_dokumen(FILE_DOKUMEN)
             
             if len(df) > 0 and 'ID' in df.columns:
-                # Dropdown pilih ID dokumen
                 id_list = df['ID'].tolist()
                 selected_id = st.selectbox("Pilih ID Dokumen", id_list, key="edit_select_id")
                 
                 if selected_id:
-                    # Ambil data dokumen berdasarkan ID
                     dok = get_dokumen_by_id(FILE_DOKUMEN, selected_id)
                     
                     if dok:
@@ -772,7 +713,6 @@ def halaman_data_master():
                             submit = st.form_submit_button("💾 Update", use_container_width=True)
                             
                             if submit:
-                                # Panggil fungsi update dari utils.py
                                 update_dokumen(FILE_DOKUMEN, selected_id, {
                                     'Judul': new_judul,
                                     'Jenis': new_jenis,
@@ -780,7 +720,6 @@ def halaman_data_master():
                                     'Status': new_status,
                                     'Keterangan': new_keterangan
                                 })
-                                # Catat log aktivitas
                                 tambah_log(FILE_LOG, selected_id, "UPDATE", st.session_state.get('username', 'Admin'))
                                 st.success(f"✅ Dokumen {selected_id} berhasil diupdate!")
                                 st.rerun()
@@ -803,7 +742,6 @@ def halaman_data_master():
                     dok = get_dokumen_by_id(FILE_DOKUMEN, selected_id)
                     
                     if dok:
-                        # Tampilkan info dokumen yang akan dihapus
                         st.markdown(f"""
                         <div class="info-card">
                             <p><strong>ID:</strong> {dok['ID']}</p>
@@ -813,16 +751,13 @@ def halaman_data_master():
                         </div>
                         """, unsafe_allow_html=True)
                         
-                        # Peringatan hapus
                         st.warning("⚠️ Tindakan ini tidak dapat dibatalkan!")
                         
                         konfirmasi = st.checkbox("Saya yakin ingin menghapus dokumen ini")
                         
                         if konfirmasi:
                             if st.button("🗑️ Hapus Permanen", type="primary", key="btn_hapus_permanen"):
-                                # Catat log aktivitas sebelum hapus
                                 tambah_log(FILE_LOG, selected_id, "DELETE", st.session_state.get('username', 'Admin'))
-                                # Hapus dokumen (tanpa menghapus file QR - fitur dalam pengembangan)
                                 hapus_dokumen(FILE_DOKUMEN, selected_id)
                                 st.success(f"✅ Dokumen {selected_id} berhasil dihapus!")
                                 time.sleep(1)
@@ -830,45 +765,274 @@ def halaman_data_master():
             else:
                 st.warning("Belum ada data dokumen")
 
-# HALAMAN SCAN QR (DALAM PENGEMBANGAN)
+# HALAMAN SCAN QR
 def halaman_scan_qr():
-    """
-    Halaman scan QR code
-    --------------------
-    FITUR SEDANG DALAM PENGEMBANGAN
-    """
-    halaman_dalam_pengembangan("Scan QR", "📷")
+    # Halaman scan QR code
+    st.header("📷 Scan QR Code")
+    st.markdown('<div class="main-header">📷 Scan QR Code</div>', unsafe_allow_html=True)
+    
+    st.write("Scan QR Code untuk melihat detail dokumen")
+    
+    col1, col2 = st.columns([1, 1])
+    
+    with col1:
+        st.info("""
+        **Cara Scan:**
+        1. Klik tombol "Mulai Scan"
+        2. Arahkan QR Code ke kamera
+        3. Data dokumen akan muncul otomatis
+        4. Tekan 'Q' pada keyboard untuk berhenti
+        """)
+        
+        if st.button("📷 Mulai Scan QR Code", type="primary"):
+            with st.spinner("Membuka kamera..."):
+                scanned_id, msg = scan_qr_code(None)
+                
+                if scanned_id:
+                    st.success(msg)
+                    st.session_state['scanned_id'] = scanned_id
+                else:
+                    st.warning(msg)
+    
+    with col2:
+        if 'scanned_id' in st.session_state:
+            scanned_id = st.session_state['scanned_id']
+            doc_data = get_dokumen_by_id(FILE_DOKUMEN, scanned_id)
+            
+            if doc_data is not None:
+                st.success(f"✅ Dokumen ditemukan!")
+                
+                st.markdown(f"""
+                <div style='background: #1a1d24; padding: 25px; border-radius: 15px;'>
+                    <h2>📄 {doc_data['Judul']}</h2>
+                    <p><strong>ID:</strong> {doc_data['ID']}</p>
+                    <p><strong>Jenis:</strong> {doc_data['Jenis']}</p>
+                    <p><strong>Lokasi:</strong> {doc_data['Lokasi_Fisik']}</p>
+                    <p><strong>Status:</strong> {doc_data['Status']}</p>
+                    <p><strong>Tanggal:</strong> {doc_data['Tanggal_Upload']}</p>
+                    <p><strong>Keterangan:</strong> {doc_data['Keterangan']}</p>
+                </div>
+                """, unsafe_allow_html=True)
+            else:
+                st.error(f"❌ Dokumen dengan ID '{scanned_id}' tidak ditemukan!")
+        else:
+            st.info("Belum ada QR Code yang di-scan")
 
-# HALAMAN KELOLA QR (DALAM PENGEMBANGAN)
+# HALAMAN KELOLA QR
 def halaman_kelola_qr():
     """
     Halaman kelola QR Code (hanya Admin)
     ------------------------------------
-    FITUR SEDANG DALAM PENGEMBANGAN
+    Terdiri dari 3 tab:
+    1. Lihat QR - melihat QR Code per dokumen
+    2. Generate Batch - generate QR untuk semua dokumen sekaligus
+    3. Download - download semua QR Code
     """
-    halaman_dalam_pengembangan("Kelola QR", "📱")
+    access = get_user_access()
+    
+    if not access['kelola_qr']:
+        st.error("🔒 Anda tidak memiliki akses ke halaman ini.")
+        return
+    
+    st.header("📱 Kelola QR Code")
+    
+    tab1, tab2, tab3 = st.tabs(["📋 Lihat QR", "🔄 Generate Batch", "⬇️ Download"])
+    
+    # TAB 1: LIHAT QR
+    with tab1:
+        df = get_semua_dokumen(FILE_DOKUMEN)
+        
+        if len(df) > 0 and 'ID' in df.columns:
+            # Dropdown pilih dokumen
+            selected_id = st.selectbox("Pilih Dokumen", df['ID'].tolist(), key="qr_select_id")
+            
+            if selected_id:
+                dok = get_dokumen_by_id(FILE_DOKUMEN, selected_id)
+                
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    # Path file QR berdasarkan ID
+                    qr_path = f"qr/{selected_id}.png"
+                    if os.path.exists(qr_path):
+                        # QR code sudah ada, tampilkan
+                        st.image(qr_path, width=250, caption=f"QR Code: {selected_id}")
+                        
+                        # Tombol download
+                        with open(qr_path, "rb") as f:
+                            st.download_button("⬇️ Download QR", f.read(), f"{selected_id}.png", "image/png", key="dl_single_qr")
+                    else:
+                        # QR code belum ada, tampilkan tombol generate
+                        st.warning("QR Code belum dibuat")
+                        if st.button("🔄 Generate QR", key="gen_single_qr"):
+                            generate_qr_code(selected_id, qr_path)
+                            st.success("✅ QR Code berhasil dibuat!")
+                            st.rerun()
+                
+                with col2:
+                    # Tampilkan info dokumen
+                    if dok:
+                        st.write(f"**🆔 ID:** {dok['ID']}")
+                        st.write(f"**📄 Judul:** {dok['Judul']}")
+                        st.write(f"**📁 Jenis:** {dok['Jenis']}")
+                        st.write(f"**📍 Lokasi:** {dok['Lokasi_Fisik']}")
+                        st.write(f"**📊 Status:** {dok['Status']}")
+        else:
+            st.warning("Belum ada data dokumen")
+    
+    # TAB 2: GENERATE BATCH
+    with tab2:
+        st.subheader("🔄 Generate QR Batch")
+        
+        df = get_semua_dokumen(FILE_DOKUMEN)
+        
+        if len(df) > 0:
+            st.write(f"📊 Total dokumen: **{len(df)}**")
+            
+            if st.button("🔄 Generate Semua QR", type="primary", use_container_width=True, key="btn_gen_batch"):
+                with st.spinner("Generating QR Codes..."):
+                    # Panggil fungsi generate batch dari utils.py
+                    generated = generate_qr_batch(FILE_DOKUMEN, FOLDER_QR)
+                st.success(f"✅ Berhasil generate {len(generated)} QR Code!")
+                # Catat log aktivitas
+                tambah_log(FILE_LOG, "BATCH", "GENERATE_BATCH", st.session_state.get('username', 'Admin'))
+        else:
+            st.warning("Belum ada data dokumen")
 
-# HALAMAN LAPORAN (DALAM PENGEMBANGAN)
+    # TAB 3: DOWNLOAD
+    with tab3:
+        st.subheader("⬇️ Download QR Code")
+        
+        if os.path.exists(FOLDER_QR):
+            # List semua file PNG di folder QR
+            qr_files = [f for f in os.listdir(FOLDER_QR) if f.endswith('.png')]
+            
+            if qr_files:
+                st.write(f"📊 Total QR: **{len(qr_files)}**")
+                
+                # Tampilkan dalam grid 4 kolom
+                cols = st.columns(4)
+                for i, qr_file in enumerate(qr_files):
+                    with cols[i % 4]:   # 4 kolom
+                        qr_path = f"{FOLDER_QR}/{qr_file}"
+                        st.image(qr_path, width=120)
+                        st.caption(qr_file.replace('.png', ''))
+                        
+                        with open(qr_path, "rb") as f:
+                            st.download_button("⬇️", f.read(), qr_file, "image/png", key=f"dl_{qr_file}")
+            else:
+                st.warning("Belum ada file QR")
+        else:
+            st.warning("Folder QR belum ada")
+
+# HALAMAN LAPORAN
 def halaman_laporan():
     """
-    Halaman laporan dan grafik
-    --------------------------
-    FITUR SEDANG DALAM PENGEMBANGAN
+    Halaman laporan dan grafik dengan ROLE-BASED ACCESS
+    ----------------------------------------------------
+    - Staff: Grafik dan Log Aktivitas
+    - Admin: Semua tab (Grafik, Log Aktivitas, Export)
     """
-    halaman_dalam_pengembangan("Laporan", "📈")
+    access = get_user_access()
+    allowed_tabs = access['laporan_tabs']
+    
+    st.header("📈 Laporan & Grafik")
+    
+    if not allowed_tabs:
+        st.error("🔒 Anda tidak memiliki akses ke halaman ini.")
+        return
+    
+    # Buat tab berdasarkan akses
+    tab_names = []
+    tab_icons = {"Grafik": "📊", "Log Aktivitas": "📋", "Export": "📥"}
+    
+    for tab in allowed_tabs:
+        tab_names.append(f"{tab_icons.get(tab, '')} {tab}")
+    
+    tabs = st.tabs(tab_names)
+    
+    # TAB: GRAFIK
+    if "Grafik" in allowed_tabs:
+        tab_index = allowed_tabs.index("Grafik")
+        with tabs[tab_index]:
+            df = get_semua_dokumen(FILE_DOKUMEN)
+            
+            if len(df) > 0:
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    fig = buat_pie_chart(df, 'Jenis', 'Distribusi Jenis Dokumen')
+                    if fig:
+                        st.plotly_chart(fig, use_container_width=True, theme=None)
+                
+                with col2:
+                    fig = buat_bar_chart(df, 'Status', 'Dokumen per Status')
+                    if fig:
+                        st.plotly_chart(fig, use_container_width=True, theme=None)
+                
+                st.markdown("---")
+                
+                fig = buat_bar_chart(df, 'Lokasi_Fisik', 'Dokumen per Lokasi')
+                if fig:
+                    st.plotly_chart(fig, use_container_width=True, theme=None)
+                
+                # Line chart aktivitas (hanya jika punya akses)
+                if access['dashboard_aktivitas']:
+                    df_log = get_semua_log(FILE_LOG)
+                    if len(df_log) > 0:
+                        st.markdown("---")
+                        fig = buat_line_chart(df_log, 'Aktivitas per Hari')
+                        if fig:
+                            st.plotly_chart(fig, use_container_width=True, theme=None)
+            else:
+                st.warning("Belum ada data dokumen")
+    
+    # TAB: LOG AKTIVITAS
+    if "Log Aktivitas" in allowed_tabs:
+        tab_index = allowed_tabs.index("Log Aktivitas")
+        with tabs[tab_index]:
+            df_log = get_semua_log(FILE_LOG)
+            
+            if len(df_log) > 0:
+                st.dataframe(df_log, use_container_width=True, hide_index=True, height=400)
+                st.info(f"📊 Total: {len(df_log)} aktivitas")
+            else:
+                st.warning("Belum ada log aktivitas")
+    
+    # TAB: EXPORT (hanya Admin)
+    if "Export" in allowed_tabs:
+        tab_index = allowed_tabs.index("Export")
+        with tabs[tab_index]:
+            st.subheader("📥 Export Data")
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.markdown("#### 📄 Export ke Excel")
+                if st.button("📥 Export Data Master", type="primary", use_container_width=True, key="btn_export_excel"):
+                    output_path = "data/export_master.xlsx"
+                    export_excel(FILE_DOKUMEN, output_path)
+                    
+                    with open(output_path, "rb") as f:
+                        st.download_button("⬇️ Download Excel", f.read(), "data_master.xlsx", 
+                            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", key="dl_excel")
+                    st.success("✅ Export berhasil!")
+            
+            with col2:
+                st.markdown("#### 💾 Backup Data")
+                if st.button("💾 Buat Backup ZIP", type="primary", use_container_width=True, key="btn_backup"):
+                    backup_name = f"backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+                    backup_path = buat_backup("data", backup_name)
+                    
+                    with open(backup_path, "rb") as f:
+                        st.download_button("⬇️ Download Backup", f.read(), f"{backup_name}.zip", "application/zip", key="dl_backup")
+                    st.success("✅ Backup berhasil!")
 
 # HALAMAN PENGATURAN
 def halaman_pengaturan():
     """
     Halaman pengaturan dengan ROLE-BASED ACCESS
     --------------------------------------------
-    Terdiri dari 3 tab:
-    1. Akun - manajemen user (hanya Admin)
-    2. Data - info penyimpanan (hanya Admin)
-    3. Tentang - informasi aplikasi (semua role)
-    
-    Akses berdasarkan Role:
-    - Viewer: Hanya tab Tentang
     - Staff: Hanya tab Tentang
     - Admin: Semua tab (Akun, Data, Tentang)
     """
@@ -896,21 +1060,19 @@ def halaman_pengaturan():
         with tabs[tab_index]:
             st.subheader("👤 Manajemen Akun")
             
-            role = st.session_state.get('role', 'viewer')
+            role = st.session_state.get('role', 'staff')
             st.markdown(f"👤 Login sebagai: **{st.session_state.get('username', 'Admin')}** {get_role_badge(role)}", unsafe_allow_html=True)
             
             st.markdown("---")
             st.markdown("#### ➕ Tambah User Baru")
             
-            # Form tambah user
             with st.form("form_user"):
                 new_user = st.text_input("Username")
                 new_pass = st.text_input("Password", type="password")
-                new_role = st.selectbox("Role", ["admin", "staff", "viewer"])
+                new_role = st.selectbox("Role", ["admin", "staff"])
                 
                 if st.form_submit_button("💾 Tambah User", use_container_width=True):
                     if new_user and new_pass:
-                        # Panggil fungsi tambah_user dari utils.py
                         if tambah_user(FILE_USERS, new_user, new_pass, new_role):
                             st.success(f"✅ User {new_user} berhasil ditambahkan!")
                         else:
@@ -918,12 +1080,10 @@ def halaman_pengaturan():
                     else:
                         st.warning("⚠️ Harap isi semua field!")
             
-            # Daftar user yang ada
             st.markdown("---")
             st.markdown("#### 📋 Daftar User")
             df_users = load_data(FILE_USERS)
             if len(df_users) > 0:
-                # Sembunyikan kolom password
                 df_display = df_users.copy()
                 df_display['password'] = '********'
                 st.dataframe(df_display, use_container_width=True, hide_index=True)
@@ -937,13 +1097,10 @@ def halaman_pengaturan():
             col1, col2, col3 = st.columns(3)
             
             with col1:
-                # Display ukuran file master.csv
                 st.metric("Master CSV", get_file_size(FILE_DOKUMEN))
             with col2:
-                # Display ukuran file log.csv
                 st.metric("Log CSV", get_file_size(FILE_LOG))
             with col3:
-                # Hitung jumlah file QR di folder qr/
                 qr_count = len([f for f in os.listdir(FOLDER_QR) if f.endswith('.png')]) if os.path.exists(FOLDER_QR) else 0
                 st.metric("QR Files", f"{qr_count} files")
     
@@ -951,7 +1108,6 @@ def halaman_pengaturan():
     if "Tentang" in allowed_tabs:
         tab_index = allowed_tabs.index("Tentang")
         with tabs[tab_index]:
-            # Header dengan gradient
             st.markdown("""
             <div style="text-align: center; padding: 30px; background: linear-gradient(135deg, #667eea, #764ba2); border-radius: 15px; margin-bottom: 20px;">
                 <h1 style="color: white; font-size: 32px;">📄 Sistem Manajemen Dokumen Kantor</h1>
@@ -959,7 +1115,6 @@ def halaman_pengaturan():
             </div>
             """, unsafe_allow_html=True)
             
-            # Deskripsi aplikasi
             st.markdown("""
             ### 📖 Tentang Aplikasi
             
@@ -974,29 +1129,28 @@ def halaman_pengaturan():
             - 📊 Dashboard & Statistik
             - 📈 Grafik Interaktif
             - 💾 Export & Backup Data
-            - 🔐 Role-Based Access Control (Admin, Staff, Viewer)
+            - 🔐 Role-Based Access Control (Admin, Staff)
             
             ### 🔐 Hak Akses Role
             
-            | Fitur | Viewer | Staff | Admin |
-            |-------|--------|-------|-------|
-            | Lobby | ✅ | ✅ | ✅ |
-            | Dashboard | ✅ (tanpa log) | ✅ | ✅ |
-            | Data Master - Lihat | ❌ | ✅ | ✅ |
-            | Data Master - Tambah/Edit/Hapus | ❌ | ❌ | ✅ |
-            | Scan QR | ✅ | ✅ | ✅ |
-            | Kelola QR | ❌ | ❌ | ✅ |
-            | Laporan - Grafik | ✅ | ✅ | ✅ |
-            | Laporan - Log Aktivitas | ❌ | ✅ | ✅ |
-            | Laporan - Export | ❌ | ❌ | ✅ |
-            | Pengaturan - Akun | ❌ | ❌ | ✅ |
-            | Pengaturan - Data | ❌ | ❌ | ✅ |
-            | Pengaturan - Tentang | ✅ | ✅ | ✅ |
+            | Fitur | Staff | Admin |
+            |-------|-------|-------|
+            | Lobby | ✅ | ✅ |
+            | Dashboard | ✅ | ✅ |
+            | Data Master - Lihat | ✅ | ✅ |
+            | Data Master - Tambah/Edit/Hapus | ❌ | ✅ |
+            | Scan QR | ✅ | ✅ |
+            | Kelola QR | ❌ | ✅ |
+            | Laporan - Grafik | ✅ | ✅ |
+            | Laporan - Log Aktivitas | ✅ | ✅ |
+            | Laporan - Export | ❌ | ✅ |
+            | Pengaturan - Akun | ❌ | ✅ |
+            | Pengaturan - Data | ❌ | ✅ |
+            | Pengaturan - Tentang | ✅ | ✅ |
             
             ### 👥 Tim Pengembang
             """)
             
-            # Daftar pengembang
             developers = [
                 {"name": "Ahmad Farid Zulkarnain", "npm": "24020063"},
                 {"name": "Apriliano Hasta Asfirza", "npm": "24020070"},
@@ -1013,7 +1167,6 @@ def halaman_pengaturan():
                 </div>
                 """, unsafe_allow_html=True)
             
-            # Informasi akademik
             st.markdown("""
             ### 🎓 Informasi Akademik
             - **Mata Kuliah:** Pemrograman Terstruktur
@@ -1021,7 +1174,6 @@ def halaman_pengaturan():
             - **Tahun:** 2025
             """)
             
-            # Teknologi yang digunakan
             st.markdown("""
             <div style='background: linear-gradient(135deg, #1a1d24 0%, #2d3139 100%); 
                         padding: 35px; 
@@ -1045,17 +1197,13 @@ def halaman_pengaturan():
             </div>
             """, unsafe_allow_html=True)
             
-            # Footer copyright
             st.markdown("""
             <div style="text-align: center; padding: 20px; margin-top: 20px;">
                 <p style="color: #b0b8c4;">© 2025 Sistem Manajemen Dokumen Kantor | v1.0.0</p>
             </div>
             """, unsafe_allow_html=True)
 
-
-# ============================================
 # MAIN APPLICATION
-# ============================================
 def main():
     """
     Fungsi utama aplikasi
@@ -1074,13 +1222,11 @@ def main():
     
     # Step 3: Routing berdasarkan status login
     if not st.session_state['logged_in']:
-        # Belum login, tampilkan halaman login
         halaman_login()
     else:
-        # Sudah login, tampilkan sidebar dan halaman utama
         # Ambil akses berdasarkan role
         access = get_user_access()
-        role = st.session_state.get('role', 'viewer')
+        role = st.session_state.get('role', 'staff')
         
         with st.sidebar:
             # Logo dan judul
@@ -1108,11 +1254,24 @@ def main():
             menu_icons = [icon_map.get(m, "circle") for m in menu_options]
             
             # Menu navigasi menggunakan streamlit_option_menu
+            # Inisialisasi current_menu di session state jika belum ada
+            if 'current_menu' not in st.session_state:
+                st.session_state['current_menu'] = menu_options[0]
+            
+            # Cari index menu yang aktif
+            try:
+                default_idx = menu_options.index(st.session_state['current_menu'])
+            except ValueError:
+                default_idx = 0
+                st.session_state['current_menu'] = menu_options[0]
+            
+            # Menu navigasi menggunakan streamlit_option_menu
             menu = option_menu(
                 menu_title=None,
                 options=menu_options,
                 icons=menu_icons,
-                default_index=0,
+                default_index=default_idx,
+                key='sidebar_menu',
                 styles={
                     "container": {"padding": "0", "background-color": "transparent"},
                     "icon": {"color": "#8b5cf6", "font-size": "18px"},
@@ -1121,12 +1280,9 @@ def main():
                 }
             )
             
-            # Update menu dari session state jika ada (dari tombol di lobby)
-            if 'menu' in st.session_state:
-                if st.session_state['menu'] in menu_options:
-                    menu = st.session_state['menu']
-                del st.session_state['menu']
-            
+            # Update current_menu di session state
+            st.session_state['current_menu'] = menu
+
             st.markdown("---")
             # Tampilkan info user dan tombol logout
             st.markdown(f"👤 **{st.session_state.get('username', 'Admin')}**")
@@ -1140,23 +1296,23 @@ def main():
                 st.rerun()
         
         # Routing/render halaman berdasarkan menu yang dipilih
-        if menu == "Lobby":
+        current_menu = st.session_state.get('current_menu', menu_options[0])
+        
+        if current_menu == "Lobby":
             halaman_lobby()
-        elif menu == "Dashboard":
+        elif current_menu == "Dashboard":
             halaman_dashboard()
-        elif menu == "Data Master":
+        elif current_menu == "Data Master":
             halaman_data_master()
-        elif menu == "Scan QR":
+        elif current_menu == "Scan QR":
             halaman_scan_qr()
-        elif menu == "Kelola QR":
+        elif current_menu == "Kelola QR":
             halaman_kelola_qr()
-        elif menu == "Laporan":
+        elif current_menu == "Laporan":
             halaman_laporan()
-        elif menu == "Pengaturan":
+        elif current_menu == "Pengaturan":
             halaman_pengaturan()
-
+        
 # ENTRY POINT
-# Blok ini hanya dijalankan jika file dieksekusi langsung
-# Tidak dijalankan jika file di-import sebagai modul
 if __name__ == "__main__":
     main()

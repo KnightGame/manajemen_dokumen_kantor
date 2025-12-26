@@ -2,18 +2,19 @@
 utils.py - Fungsi Utilitas Sistem Manajemen Dokumen QR Code
 File ini berisi semua fungsi pendukung yang dipanggil dari main.py
 Dipisahkan untuk menjaga kode tetap modular dan terorganisir
-
-CATATAN: Beberapa fitur masih dalam pengembangan:
-- Scan QR Code - DALAM PENGEMBANGAN
-- Kelola QR / Generate Batch - DALAM PENGEMBANGAN
-- Laporan (Grafik, Export, Backup) - DALAM PENGEMBANGAN
-
 IMPORT LIBRARY
 '''
 import pandas as pd                     # untuk manipulasi data
-import qrcode                           # generate QR code (untuk preview di Data Master)
+import numpy as np                      # operasi array (untuk QR code scanning)
+import qrcode                           # generate QR code
+import cv2                              # baca gambar dan scan QR code
 import os                               # operasi file dan folder
+import shutil                           # operasi file dan folder
+import zipfile                          # buat file ZIP untuk backup
 from datetime import datetime           # tanggal dan waktu
+from pyzbar.pyzbar import decode        # scan QR code dari gambar
+from PIL import Image                   # manipulasi gambar
+import plotly.graph_objects as go       # buat grafik
 
 '''
 KONSTANTA: adalah nilai tetap yang tidak berubah selama program berjalan
@@ -35,7 +36,7 @@ COLUMNS_LOG = ['ID_Log',        # ID log
 
 COLUMNS_USERS = ['username',    # username untuk login
                  'password',    # password untuk login
-                 'role']        # peran user (admin/staff/user)
+                 'role']        # peran user (admin/staff)
 
 JENIS_DOKUMEN = [
     "Surat Masuk", 
@@ -70,20 +71,13 @@ LOKASI_LIST = [
     "Ruang Khusus"
 ]
 
+# Warna untuk grafik
+CHART_COLORS = ['#8b5cf6', '#06b6d4', '#10b981', '#f59e0b', 
+                '#ef4444', '#ec4899', '#3b82f6', '#84cc16', '#f97316', '#6366f1']
 
-# ============================================
 # FUNGSI LOAD & SAVE DATA
-# ============================================
 def load_data(file_path):
-    """
-    Muat data dari file CSV dengan penanganan error yang lebih baik
-    
-    Parameter:
-    - file_path: path ke file CSV yang akan dibaca
-    
-    Return:
-    - DataFrame berisi data dari file CSV, atau DataFrame kosong jika gagal
-    """
+    # Muat data dari file CSV dengan penanganan error yang lebih baik
     if os.path.exists(file_path):
         try:
             # Baca file CSV dengan pandas
@@ -104,18 +98,10 @@ def load_data(file_path):
 
 
 def save_data(file_path, df):
-    """
+    '''
     Simpan DataFrame ke file CSV
-    
-    Parameter:
-    - file_path: path ke file CSV tujuan
-    - df: DataFrame yang akan disimpan
-    
-    Return:
-    - True jika berhasil, False jika gagal
-    
     DIPERBAIKI: Menambahkan try-except untuk penanganan error
-    """
+    '''
     try:
         # Buat folder jika belum ada
         os.makedirs(os.path.dirname(file_path) if os.path.dirname(file_path) else '.', exist_ok=True)
@@ -130,10 +116,7 @@ def save_data(file_path, df):
         print(f"Error saving {file_path}: {e}")
         return False
 
-
-# ============================================
 # FUNGSI INISIALISASI
-# ============================================
 def init_folders():
     """
     Buat folder yang diperlukan
@@ -147,15 +130,7 @@ def init_folders():
 
 
 def init_master_csv(file_path):
-    """
-    Inisialisasi file master dokumen
-    
-    Parameter:
-    - file_path: path ke file CSV master
-    
-    Return:
-    - DataFrame dari file master (kosong jika baru dibuat)
-    """
+    # Inisialisasi file master dokumen
     if not os.path.exists(file_path):
         # file belum ada, buat baru dengan kolom yang sudah didefinisikan
         df = pd.DataFrame(columns=COLUMNS_MASTER)
@@ -164,15 +139,7 @@ def init_master_csv(file_path):
 
 
 def init_log_csv(file_path):
-    """
-    Inisialisasi file log aktivitas
-    
-    Parameter:
-    - file_path: path ke file CSV log
-    
-    Return:
-    - DataFrame dari file log (kosong jika baru dibuat)
-    """
+    # Inisialisasi file log aktivitas
     if not os.path.exists(file_path):
         df = pd.DataFrame(columns=COLUMNS_LOG)
         save_data(file_path, df)
@@ -181,38 +148,21 @@ def init_log_csv(file_path):
 
 def init_users_csv(file_path):
     """
-    Inisialisasi file users dengan default users (admin, staff, viewer)
-    
-    Parameter:
-    - file_path: path ke file CSV users
-    
-    Return:
-    - DataFrame dari file users
+    Inisialisasi file users dengan default users (admin, staff)
     """
     if not os.path.exists(file_path):
-        # Buat user default: admin, staff, viewer
+        # Buat user default: admin, staff
         df = pd.DataFrame({
-            'username': ['admin', 'staff', 'viewer'],
-            'password': ['admin123', 'staff123', 'viewer123'],
-            'role': ['admin', 'staff', 'viewer']
+            'username': ['admin', 'staff'],
+            'password': ['admin123', 'staff123'],
+            'role': ['admin', 'staff']
         })
         save_data(file_path, df)
     return load_data(file_path)
 
-
-# ============================================
 # FUNGSI GENERATE ID
-# ============================================
 def generate_id_dokumen(df):
-    """
-    Generate ID dokumen baru dengan format DOC001, DOC002, dst
-    
-    Parameter:
-    - df: DataFrame master dokumen
-    
-    Return:
-    - string ID baru (contoh: "DOC001", "DOC002", dst)
-    """
+    # Generate ID dokumen baru
     if len(df) == 0 or 'ID' not in df.columns:
         return "DOC001"
     
@@ -234,15 +184,7 @@ def generate_id_dokumen(df):
 
 
 def generate_id_log(df):
-    """
-    Generate ID log baru (auto increment)
-    
-    Parameter:
-    - df: DataFrame log aktivitas
-    
-    Return:
-    - integer ID log baru
-    """
+    # Generate ID log baru
     if len(df) == 0 or 'ID_Log' not in df.columns:
         return 1    # mulai dari 1
     try:
@@ -251,21 +193,9 @@ def generate_id_log(df):
     except:
         return len(df) + 1
 
-
-# ============================================
 # FUNGSI CRUD DOKUMEN
-# ============================================
 def tambah_dokumen(file_path, data):
-    """
-    Tambah dokumen baru ke database
-    
-    Parameter:
-    - file_path: path ke file CSV master
-    - data: dictionary berisi judul, jenis, lokasi, status, keterangan
-    
-    Return:
-    - new_id: ID dokumen yang baru dibuat
-    """
+    # Tambah dokumen baru ke database
     # Muat data master
     df = load_data(file_path)
     
@@ -303,16 +233,7 @@ def tambah_dokumen(file_path, data):
 
 
 def get_dokumen_by_id(file_path, id_dokumen):
-    """
-    Ambil dokumen berdasarkan ID
-    
-    Parameter:
-    - file_path: path ke file CSV master
-    - id_dokumen: ID dokumen yang dicari
-    
-    Return:
-    - dictionary data dokumen atau None jika tidak ditemukan
-    """
+    # Ambil dokumen berdasarkan ID
     df = load_data(file_path)
     
     # Cek apakah ada data dan kolom ID
@@ -333,17 +254,7 @@ def get_dokumen_by_id(file_path, id_dokumen):
 
 
 def update_dokumen(file_path, id_dokumen, data):
-    """
-    Update dokumen berdasarkan ID
-    
-    Parameter:
-    - file_path: path ke file CSV master
-    - id_dokumen: ID dokumen yang akan diupdate
-    - data: dictionary berisi kolom dan nilai baru
-    
-    Return:
-    - True jika berhasil, False jika gagal
-    """
+    # Update dokumen berdasarkan ID
     df = load_data(file_path)
     if len(df) == 0 or 'ID' not in df.columns:
         return False
@@ -367,19 +278,7 @@ def update_dokumen(file_path, id_dokumen, data):
 
 
 def hapus_dokumen(file_path, id_dokumen):
-    """
-    Hapus dokumen berdasarkan ID (tanpa menghapus file QR)
-    
-    Parameter:
-    - file_path: path ke file CSV master
-    - id_dokumen: ID dokumen yang akan dihapus
-    
-    Return:
-    - True jika berhasil, False jika gagal
-    
-    CATATAN: Logika penghapusan file QR dihapus karena fitur Kelola QR
-    masih dalam pengembangan
-    """
+    # Hapus dokumen berdasarkan ID
     df = load_data(file_path)
     if len(df) == 0 or 'ID' not in df.columns:
         return False
@@ -397,6 +296,14 @@ def hapus_dokumen(file_path, id_dokumen):
     
     # Simpan jumlah data sebelum hapus untuk validasi
     jumlah_sebelum = len(df)
+    
+    # Hapus file QR terlebih dahulu jika ada
+    qr_path = f"qr/{id_dokumen}.png"
+    if os.path.exists(qr_path):
+        try:
+            os.remove(qr_path)
+        except Exception as e:
+            print(f"Warning: Gagal menghapus QR file: {e}")
     
     # Filter dengan perbandingan string yang benar
     df_filtered = df[df['ID'] != id_dokumen].copy()
@@ -424,31 +331,12 @@ def hapus_dokumen(file_path, id_dokumen):
 
 
 def get_semua_dokumen(file_path):
-    """
-    Ambil semua dokumen dari database
-    
-    Parameter:
-    - file_path: path ke file CSV master
-    
-    Return:
-    - DataFrame berisi semua dokumen
-    """
+    # Ambil semua dokumen dari database
     return load_data(file_path)
 
-
-# ============================================
 # FUNGSI LOG AKTIVITAS
-# ============================================
 def tambah_log(file_path, id_dokumen, aksi, user="Admin"):
-    """
-    Tambah log aktivitas
-    
-    Parameter:
-    - file_path: path ke file CSV log
-    - id_dokumen: ID dokumen terkait
-    - aksi: jenis aksi (CREATE, UPDATE, DELETE, dll)
-    - user: username yang melakukan aksi
-    """
+    # Tambah log aktivitas
     df = load_data(file_path)
     
     # Buat dictionary log baru
@@ -472,36 +360,13 @@ def tambah_log(file_path, id_dokumen, aksi, user="Admin"):
 
 
 def get_semua_log(file_path):
-    """
-    Ambil semua log aktivitas
-    
-    Parameter:
-    - file_path: path ke file CSV log
-    
-    Return:
-    - DataFrame berisi semua log aktivitas
-    """
+    # Ambil semua log aktivitas
     return load_data(file_path)
 
-
-# ============================================
-# FUNGSI QR CODE (DASAR - untuk Preview di Data Master)
-# ============================================
+# FUNGSI QR CODE
 def generate_qr_code(data, output_path):
-    """
-    Generate QR Code dan simpan ke file
-    
-    Parameter:
-    - data: data yang akan di-encode ke QR code (biasanya ID dokumen)
-    - output_path: path file output untuk menyimpan gambar QR
-    
-    Return:
-    - output_path: path file yang sudah disimpan
-    
-    CATATAN: Fungsi ini digunakan untuk generate QR saat tambah dokumen
-    di halaman Data Master. Fitur Kelola QR (batch generate, download, dll)
-    masih dalam pengembangan.
-    """
+    # Generate QR Code dan simpan ke file
+
     # Buat folder jika belum ada
     os.makedirs(os.path.dirname(output_path) if os.path.dirname(output_path) else '.', exist_ok=True)
     
@@ -526,19 +391,64 @@ def generate_qr_code(data, output_path):
     return output_path
 
 
-# ============================================
-# FUNGSI STATISTIK (untuk Dashboard)
-# ============================================
+def scan_qr_code(image_file):
+    # Scan QR Code dari file gambar (upload atau camera input)
+    try:
+        cap = cv2.VideoCapture(0)
+        
+        if not cap.isOpened():
+            return None, "Tidak dapat mengakses kamera"
+        
+        while True:
+            ret, frame = cap.read()
+            
+            if not ret:
+                break
+            
+            # Decode QR Code
+            decoded_objects = decode(frame)
+            
+            for obj in decoded_objects:
+                # Ambil data dari QR Code
+                qr_data = obj.data.decode('utf-8')
+                cap.release()
+                cv2.destroyAllWindows()
+                return qr_data, "Berhasil scan QR Code"
+            
+            # Tampilkan frame
+            cv2.imshow('Scan QR Code - Tekan Q untuk keluar', frame)
+            
+            # Tekan 'q' untuk keluar
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
+        
+        cap.release()
+        cv2.destroyAllWindows()
+        return None, "Scan dibatalkan"
+        
+    except Exception as e:
+        return None, f"Error: {str(e)}"
+
+
+def generate_qr_batch(file_path, output_folder):
+    # Generate QR Code untuk semua dokumen sekaligus
+    df = load_data(file_path)
+    os.makedirs(output_folder, exist_ok=True)
+    
+    generated = []
+    
+    # Loop tiap baris dokumen
+    for _, row in df.iterrows():
+        if 'ID' in row:
+            qr_path = f"{output_folder}/{row['ID']}.png"
+            generate_qr_code(row['ID'], qr_path)
+            generated.append(row['ID'])
+    
+    return generated
+
+# FUNGSI STATISTIK
 def get_statistik(file_path):
-    """
-    Ambil statistik dokumen untuk dashboard
-    
-    Parameter:
-    - file_path: path ke file CSV master
-    
-    Return:
-    - dictionary berisi total, per_jenis, per_status, per_lokasi
-    """
+    # Ambil statistik dokumen
     df = load_data(file_path)
     
     # Return statistik kosong jika data kosong
@@ -564,16 +474,7 @@ def get_statistik(file_path):
 
 
 def get_dokumen_terbaru(file_path, limit=5):
-    """
-    Ambil dokumen terbaru untuk dashboard
-    
-    Parameter:
-    - file_path: path ke file CSV master
-    - limit: jumlah dokumen yang diambil (default 5)
-    
-    Return:
-    - DataFrame berisi n dokumen terbaru
-    """
+    # Ambil dokumen terbaru
     df = load_data(file_path)
     if len(df) == 0:
         return pd.DataFrame()
@@ -583,37 +484,118 @@ def get_dokumen_terbaru(file_path, limit=5):
 
 
 def get_log_terbaru(file_path, limit=5):
-    """
-    Ambil log aktivitas terbaru untuk dashboard
-    
-    Parameter:
-    - file_path: path ke file CSV log
-    - limit: jumlah log yang diambil (default 5)
-    
-    Return:
-    - DataFrame berisi n log terbaru
-    """
+    # Ambil log aktivitas terbaru
     df = load_data(file_path)
     if len(df) == 0:
         return pd.DataFrame()
     
     return df.tail(limit).iloc[::-1]
 
+# FUNGSI GRAFIK
+def buat_pie_chart(df, kolom, judul):
+    # Buat pie chart (donut chart)
+    if len(df) == 0 or kolom not in df.columns:
+        return None
+    
+    # Hitung frekuensi nilai di kolom
+    data = df[kolom].value_counts()
+    if len(data) == 0:
+        return None
+    
+    # Buat pie chart menggunakan Plotly
+    fig = go.Figure(data=[go.Pie(
+        labels=data.index.tolist(),                     # label dari nilai unik
+        values=data.values.tolist(),                    # nilai dari frekuensi
+        hole=0.4,                                       # buat donut chart (lubang di tengah)
+        marker=dict(colors=CHART_COLORS[:len(data)])    # warna chart custom
+    )])
+    
+    # Update layout chart agar sesuai tema gelap
+    fig.update_layout(
+        title=dict(text=judul, font=dict(color='#fafafa', size=16)),
+        paper_bgcolor='#1a1d24',                    # background luar
+        plot_bgcolor='#1a1d24',                     # background area plot
+        font=dict(color='#fafafa'),                 # warna teks
+        legend=dict(font=dict(color='#fafafa')),    # warna legend
+        margin=dict(l=20, r=20, t=50, b=20)         # margin chart
+    )
+    
+    return fig
 
-# ============================================
+
+def buat_bar_chart(df, kolom, judul):
+    # Buat bar chart
+    if len(df) == 0 or kolom not in df.columns:
+        return None
+    
+    data = df[kolom].value_counts()
+    if len(data) == 0:
+        return None
+    
+    # Buat bar chart menggunakan Plotly
+    fig = go.Figure(data=[go.Bar(
+        x=data.index.tolist(),                          # kategori di sumbu x
+        y=data.values.tolist(),                         # nilai di sumbu y
+        marker=dict(color=CHART_COLORS[:len(data)])     # warna bar
+    )])
+    
+    # Update layout untuk tema gelap
+    fig.update_layout(
+        title=dict(text=judul, font=dict(color='#fafafa', size=16)),
+        paper_bgcolor='#1a1d24',
+        plot_bgcolor='#1a1d24',
+        font=dict(color='#fafafa'),
+        xaxis=dict(tickfont=dict(color='#b0b8c4'), gridcolor='#2d3139'),    # warna grid sumbu x
+        yaxis=dict(tickfont=dict(color='#b0b8c4'), gridcolor='#2d3139'),    # warna grid sumbu y
+        margin=dict(l=20, r=20, t=50, b=20)
+    )
+    
+    return fig
+
+
+def buat_line_chart(df, judul):
+    # Buat line chart aktivitas per hari
+    if len(df) == 0 or 'Waktu' not in df.columns:
+        return None
+    
+    try:
+        # Ekstrak tanggal dari kolom Waktu
+        df_temp = df.copy()
+        df_temp['Tanggal'] = pd.to_datetime(df_temp['Waktu']).dt.date
+        
+        # Hitung jumlah aktivitas per tanggal
+        data = df_temp.groupby('Tanggal').size()
+        
+        if len(data) == 0:
+            return None
+        
+        # Buat line chart dengan area fill
+        fig = go.Figure(data=[go.Scatter(
+            x=data.index.tolist(),
+            y=data.values.tolist(),
+            mode='lines+markers',           # garis dengan marker titik
+            fill='tozeroy',                 # fill area sampai sumbu y = 0
+            line=dict(color='#8b5cf6', width=3),
+            marker=dict(size=8, color='#8b5cf6')
+        )])
+        
+        fig.update_layout(
+            title=dict(text=judul, font=dict(color='#fafafa', size=16)),
+            paper_bgcolor='#1a1d24',
+            plot_bgcolor='#1a1d24',
+            font=dict(color='#fafafa'),
+            xaxis=dict(tickfont=dict(color='#b0b8c4'), gridcolor='#2d3139'),
+            yaxis=dict(tickfont=dict(color='#b0b8c4'), gridcolor='#2d3139'),
+            margin=dict(l=20, r=20, t=50, b=20)
+        )
+        
+        return fig
+    except:
+        return None
+
 # FUNGSI PENCARIAN & FILTER
-# ============================================
 def cari_dokumen(file_path, keyword):
-    """
-    Cari dokumen berdasarkan keyword
-    
-    Parameter:
-    - file_path: path ke file CSV master
-    - keyword: kata kunci pencarian
-    
-    Return:
-    - DataFrame hasil pencarian
-    """
+    # Cari dokumen berdasarkan keyword
     df = load_data(file_path)
     if len(df) == 0:
         return pd.DataFrame()
@@ -631,17 +613,7 @@ def cari_dokumen(file_path, keyword):
 
 
 def filter_dokumen(file_path, kolom, nilai):
-    """
-    Filter dokumen berdasarkan kolom dan nilai tertentu
-    
-    Parameter:
-    - file_path: path ke file CSV master
-    - kolom: nama kolom untuk filter
-    - nilai: nilai yang dicari
-    
-    Return:
-    - DataFrame hasil filter
-    """
+    # Filter dokumen berdasarkan kolom dan nilai tertentu
     df = load_data(file_path)
     if len(df) == 0 or kolom not in df.columns:
         return df
@@ -653,22 +625,40 @@ def filter_dokumen(file_path, kolom, nilai):
     # Filter data berdasarkan kolom dan nilai
     return df[df[kolom] == nilai]
 
+# FUNGSI EXPORT & BACKUP
+def export_excel(file_path, output_path):
+    # Export data ke file Excel
+    df = load_data(file_path)
+    
+    # Buat folder jika belum ada
+    os.makedirs(os.path.dirname(output_path) if os.path.dirname(output_path) else '.', exist_ok=True)
+    
+    # Export ke Excel menggunakan openpyxl engine
+    df.to_excel(output_path, index=False, engine='openpyxl')
+    
+    return output_path
 
-# ============================================
-# FUNGSI LOGIN & USER
-# ============================================
+
+def buat_backup(source_folder, backup_name):
+    # Buat backup folder ke file ZIP
+    backup_path = f"{backup_name}.zip"
+    
+    # Buat file zip dengan kompresi
+    with zipfile.ZipFile(backup_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+        # Walk melalui semua file di folder sumber
+        for root, dirs, files in os.walk(source_folder):
+            for file in files:
+                file_path = os.path.join(root, file)
+                
+                # arcname: nama file di dalam zip relatif terhadap folder sumber
+                arcname = os.path.relpath(file_path, source_folder)
+                zipf.write(file_path, arcname)
+    
+    return backup_path
+
+# FUNGSI LOGIN
 def validasi_login(file_path, username, password):
-    """
-    Validasi login user
-    
-    Parameter:
-    - file_path: path ke file CSV users
-    - username: username yang diinput
-    - password: password yang diinput
-    
-    Return:
-    - dictionary berisi valid (bool), username, role, message
-    """
+    # Validasi login user
     df = load_data(file_path)
     
     if len(df) == 0:
@@ -689,18 +679,7 @@ def validasi_login(file_path, username, password):
 
 
 def tambah_user(file_path, username, password, role):
-    """
-    Tambah user baru
-    
-    Parameter:
-    - file_path: path ke file CSV users
-    - username: username baru
-    - password: password baru
-    - role: role user (admin/staff/viewer)
-    
-    Return:
-    - True jika berhasil, False jika username sudah ada
-    """
+    # Tambah user baru
     df = load_data(file_path)
     
     # Cek apakah username sudah ada
@@ -723,20 +702,9 @@ def tambah_user(file_path, username, password, role):
     save_data(file_path, df)
     return True
 
-
-# ============================================
 # FUNGSI UTILITAS
-# ============================================
 def get_file_size(file_path):
-    """
-    Ambil ukuran file dalam format yang mudah dibaca
-    
-    Parameter:
-    - file_path: path ke file
-    
-    Return:
-    - string ukuran file (contoh: "1.5 KB")
-    """
+    # Ambil ukuran file dalam format yang mudah dibaca
     if not os.path.exists(file_path):
         return "0 B"
     
