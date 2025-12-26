@@ -103,7 +103,7 @@ sistem-dokumen-qr/
 ### 1. Halaman Login
 <img width="1365" height="680" alt="image" src="https://github.com/user-attachments/assets/67c21939-bedd-4351-947b-55b08ee10bb9" />
 
-Halaman login dengan autentikasi username dan password. Default login: `admin` / `admin123`, `staff'` / `staff123`
+Halaman login dengan autentikasi username dan password. Default login: `admin` / `admin123`, `staff` / `staff123`
 
 ### 2. Dashboard
 <img width="1365" height="679" alt="image" src="https://github.com/user-attachments/assets/7681da9b-6820-4e2a-93bd-8c9071c42462" />
