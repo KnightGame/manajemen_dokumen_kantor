@@ -101,13 +101,13 @@ sistem-dokumen-qr/
 ## 📸 Screenshot Aplikasi
 
 ### 1. Halaman Login
-![Login](screenshot/link<img width="1365" height="680" alt="image" src="https://github.com/user-attachments/assets/67c21939-bedd-4351-947b-55b08ee10bb9" />
-)
+<img width="1365" height="680" alt="image" src="https://github.com/user-attachments/assets/67c21939-bedd-4351-947b-55b08ee10bb9" />
 
 Halaman login dengan autentikasi username dan password. Default login: `admin` / `admin123`
 
 ### 2. Dashboard
-![Dashboard](screenshot/link)
+<img width="1365" height="679" alt="image" src="https://github.com/user-attachments/assets/7681da9b-6820-4e2a-93bd-8c9071c42462" />
+
 
 Dashboard menampilkan:
 - Total dokumen, aktivitas, jenis, dan lokasi
@@ -116,7 +116,8 @@ Dashboard menampilkan:
 - Daftar dokumen dan aktivitas terbaru
 
 ### 3. Data Master (CRUD)
-![CRUD](screenshot/link)
+<img width="1365" height="682" alt="image" src="https://github.com/user-attachments/assets/8666f541-926c-44a6-8bdb-67910c3d2c84" />
+
 
 Halaman CRUD dengan 4 tab:
 - **Lihat Data** - Tabel dengan filter dan pencarian
@@ -125,7 +126,8 @@ Halaman CRUD dengan 4 tab:
 - **Hapus** - Hapus dokumen dengan konfirmasi
 
 ### 4. Scan QR Code
-![Scan QR](screenshot/link)
+<img width="1365" height="680" alt="image" src="https://github.com/user-attachments/assets/82e51e62-555d-4cd7-ba0d-f98ec447edf5" />
+
 
 Fitur scan QR Code via webcam dengan:
 - Auto-scan mode
@@ -133,7 +135,8 @@ Fitur scan QR Code via webcam dengan:
 - Input manual ID sebagai alternatif
 
 ### 5. Kelola QR Code
-![Kelola QR](screenshot/link)
+<img width="1365" height="679" alt="image" src="https://github.com/user-attachments/assets/492f12f4-7e0a-45fe-a836-4606d198b053" />
+
 
 Halaman untuk generate dan download QR Code:
 - Lihat QR per dokumen
