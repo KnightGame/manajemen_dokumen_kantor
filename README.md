@@ -132,7 +132,6 @@ Halaman CRUD dengan 4 tab:
 Fitur scan QR Code via webcam dengan:
 - Auto-scan mode
 - Status sukses (hijau) / error (merah)
-- Input manual ID sebagai alternatif
 
 ### 5. Kelola QR Code
 <img width="1365" height="679" alt="image" src="https://github.com/user-attachments/assets/492f12f4-7e0a-45fe-a836-4606d198b053" />
@@ -278,7 +277,6 @@ streamlit-option-menu>=0.3.6
 |----------|----------|------|
 | admin | admin123 | admin |
 | staff | staff123 | staff |
-| viewer | viewer123 | viewer |
 
 ---
 
