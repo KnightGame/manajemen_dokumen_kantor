@@ -1,0 +1,4 @@
+﻿username;password;role
+admin;admin123;admin
+staff;staff123;staff
+shiro;1;admin
